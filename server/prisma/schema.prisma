@@ -1,0 +1,53 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  PREFER_NOT_TO_SAY
+}
+
+model User {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  firebaseUid String   @unique
+  firstName   String?
+  gender      Gender
+  verified    Boolean  @default(false)
+  banned      Boolean  @default(false)
+  strikeCount Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  matchesAsUser1  Match[]  @relation("MatchUser1")
+  matchesAsUser2  Match[]  @relation("MatchUser2")
+  reportsFiled    Report[] @relation("ReporterUser")
+  reportsReceived Report[] @relation("ReportedUser")
+}
+
+model Match {
+  id        String    @id @default(uuid())
+  user1Id   String
+  user2Id   String
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+
+  user1 User @relation("MatchUser1", fields: [user1Id], references: [id])
+  user2 User @relation("MatchUser2", fields: [user2Id], references: [id])
+}
+
+model Report {
+  id         String   @id @default(uuid())
+  reporterId String
+  reportedId String
+  reason     String
+  timestamp  DateTime @default(now())
+
+  reporter User @relation("ReporterUser", fields: [reporterId], references: [id])
+  reported User @relation("ReportedUser", fields: [reportedId], references: [id])
+}

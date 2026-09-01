@@ -1,0 +1,339 @@
+:root {
+  --text: #6b6375;
+  --text-h: #08060d;
+  --bg: #fff;
+  --border: #e5e4e7;
+
+  font: 18px/145% system-ui, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: light dark;
+  color: var(--text);
+  background: var(--bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text: #9ca3af;
+    --text-h: #f3f4f6;
+    --bg: #16171d;
+    --border: #2e303a;
+  }
+}
+
+body {
+  margin: 0;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+h1,
+h2 {
+  color: var(--text-h);
+}
+
+.page {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+  text-align: center;
+}
+
+.page form {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.page input {
+  padding: 0.5rem;
+  flex: 1;
+}
+
+.page button {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+}
+
+.error {
+  color: #d33;
+  margin-top: 1rem;
+}
+
+/* Chat page: full-screen video-call-style layout (video is not implemented, UI only). */
+.video-call-page {
+  --stage-bg: #16171d;
+  --stage-border: #2a2c35;
+  --panel-bg: #1a1b21;
+  --control-bg: #23252d;
+  --control-hover: #2e303a;
+  --text-dim: #9ca3af;
+  --text-bright: #f3f4f6;
+
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 1rem;
+  height: 100vh;
+  padding: 1rem;
+  box-sizing: border-box;
+  background: #0b0c10;
+  color: var(--text-bright);
+}
+
+.video-stage {
+  position: relative;
+  background: var(--stage-bg);
+  border: 1px solid var(--stage-border);
+  border-radius: 16px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stage-overlay-top {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--stage-border);
+  font-size: 0.85rem;
+  color: var(--text-bright);
+  z-index: 2;
+}
+
+.stage-placeholder {
+  color: var(--text-dim);
+}
+
+.avatar-icon {
+  width: 96px;
+  height: 96px;
+  padding: 20px;
+  border-radius: 50%;
+  background: var(--control-bg);
+  border: 1px solid var(--stage-border);
+  box-sizing: border-box;
+}
+
+.self-view {
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  width: 180px;
+  height: 135px;
+  background: #101116;
+  border: 1px solid var(--stage-border);
+  border-radius: 12px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: flex-end;
+  padding: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  z-index: 2;
+}
+
+.video-controls {
+  position: absolute;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.6rem;
+  border-radius: 999px;
+  background: rgba(16, 17, 22, 0.75);
+  border: 1px solid var(--stage-border);
+  z-index: 3;
+}
+
+.control-btn {
+  padding: 0.6rem 1.25rem;
+  border-radius: 999px;
+  border: 1px solid var(--stage-border);
+  background: var(--control-bg);
+  color: var(--text-bright);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.control-btn:hover:not(:disabled) {
+  background: var(--control-hover);
+  transform: translateY(-1px);
+}
+
+.control-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.control-btn-primary {
+  background: #3556f0;
+  border-color: #3556f0;
+}
+
+.control-btn-primary:hover:not(:disabled) {
+  background: #4666ff;
+}
+
+.control-btn-danger {
+  background: #7a1f1f;
+  border-color: #7a1f1f;
+}
+
+.control-btn-danger:hover:not(:disabled) {
+  background: #932626;
+}
+
+.chat-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--panel-bg);
+  border: 1px solid var(--stage-border);
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.chat-panel-header {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--stage-border);
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.chat-panel-header p {
+  margin: 0;
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.bubble {
+  max-width: 85%;
+  padding: 0.5rem 0.75rem;
+  border-radius: 12px;
+  word-wrap: break-word;
+  font-size: 0.9rem;
+}
+
+.bubble-self {
+  align-self: flex-end;
+  background: #3556f0;
+  color: #fff;
+}
+
+.bubble-stranger {
+  align-self: flex-start;
+  background: var(--control-bg);
+  color: var(--text-bright);
+}
+
+.chat-input-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-top: 1px solid var(--stage-border);
+  background: var(--panel-bg);
+}
+
+.chat-input-bar input {
+  flex: 1;
+  padding: 0.6rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--stage-border);
+  background: var(--control-bg);
+  color: var(--text-bright);
+}
+
+.chat-input-bar input:disabled {
+  opacity: 0.6;
+}
+
+.chat-input-bar button {
+  padding: 0.6rem 1.1rem;
+  border-radius: 999px;
+  border: 1px solid #3556f0;
+  background: #3556f0;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.chat-input-bar button:hover:not(:disabled) {
+  background: #4666ff;
+}
+
+.chat-input-bar button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.report-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 10;
+}
+
+.report-sheet {
+  background: #1a1b21;
+  border: 1px solid #2a2c35;
+  border-radius: 16px 16px 0 0;
+  width: 100%;
+  max-width: 480px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.report-sheet p {
+  color: #f3f4f6;
+}
+
+.report-sheet button {
+  padding: 0.75rem;
+  border-radius: 8px;
+  border: 1px solid #2a2c35;
+  background: #23252d;
+  color: #f3f4f6;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.report-sheet button:hover {
+  background: #2e303a;
+}
+
+.report-cancel {
+  color: #9ca3af;
+}
+
+@media (max-width: 900px) {
+  .video-call-page {
+    grid-template-columns: 1fr;
+    grid-template-rows: 55vh 1fr;
+  }
+
+  .self-view {
+    width: 120px;
+    height: 90px;
+  }
+}
