@@ -28,12 +28,32 @@ export function useWebRTC(active: boolean, isInitiator: boolean) {
     let cancelled = false;
     let peer: RTCPeerConnection | null = null;
     let localStream: MediaStream | null = null;
+    let pendingOffer: RTCSessionDescriptionInit | null = null;
+    let pendingCandidates: RTCIceCandidateInit[] = [];
+
+    async function flushPendingCandidates() {
+      if (!peer) return;
+      const queued = pendingCandidates;
+      pendingCandidates = [];
+      for (const candidate of queued) {
+        try {
+          await peer.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch {
+          // Invalid candidates are safe to ignore.
+        }
+      }
+    }
 
     async function handleOffer({ offer }: { offer: RTCSessionDescriptionInit }) {
-      if (!peer) return;
+      if (!peer) {
+        // Peer isn't created yet (still awaiting getUserMedia) — queue for when it is.
+        pendingOffer = offer;
+        return;
+      }
       console.log("[WEBRTC-DEBUG] Received offer");
       await peer.setRemoteDescription(new RTCSessionDescription(offer));
       console.log("[WEBRTC-DEBUG] Remote description set (offer)");
+      await flushPendingCandidates();
       console.log("[WEBRTC-DEBUG] Creating answer");
       const answer = await peer.createAnswer();
       await peer.setLocalDescription(answer);
@@ -46,10 +66,16 @@ export function useWebRTC(active: boolean, isInitiator: boolean) {
       console.log("[WEBRTC-DEBUG] Received answer");
       await peer.setRemoteDescription(new RTCSessionDescription(answer));
       console.log("[WEBRTC-DEBUG] Remote description set (answer)");
+      await flushPendingCandidates();
     }
 
     async function handleIceCandidate({ candidate }: { candidate: RTCIceCandidateInit }) {
-      if (!peer || !candidate) return;
+      if (!candidate) return;
+      if (!peer || !peer.remoteDescription) {
+        // No remote description yet — queue and apply once it's set, instead of dropping.
+        pendingCandidates.push(candidate);
+        return;
+      }
       console.log("[WEBRTC-DEBUG] ICE candidate received", candidate);
       try {
         await peer.addIceCandidate(new RTCIceCandidate(candidate));
@@ -57,6 +83,12 @@ export function useWebRTC(active: boolean, isInitiator: boolean) {
         // Late/invalid candidates are safe to ignore.
       }
     }
+
+    // Registered immediately (before getUserMedia/RTCPeerConnection creation) so an
+    // offer/answer/ICE candidate arriving early is queued above instead of dropped.
+    socket.on("webrtc_offer", handleOffer);
+    socket.on("webrtc_answer", handleAnswer);
+    socket.on("webrtc_ice_candidate", handleIceCandidate);
 
     async function start() {
       setMediaError(null);
@@ -113,16 +145,16 @@ export function useWebRTC(active: boolean, isInitiator: boolean) {
         console.log(`[WEBRTC-DEBUG] signalingState: ${peer?.signalingState}`);
       };
 
-      socket.on("webrtc_offer", handleOffer);
-      socket.on("webrtc_answer", handleAnswer);
-      socket.on("webrtc_ice_candidate", handleIceCandidate);
-
       if (isInitiator) {
         console.log("[WEBRTC-DEBUG] Peer connection: creating offer");
         const offer = await peer.createOffer();
         await peer.setLocalDescription(offer);
         console.log("[WEBRTC-DEBUG] Local description set (offer)");
         socket.emit("webrtc_offer", { offer });
+      } else if (pendingOffer) {
+        // An offer arrived while getUserMedia/RTCPeerConnection setup was still in flight.
+        await handleOffer({ offer: pendingOffer });
+        pendingOffer = null;
       }
     }
 
