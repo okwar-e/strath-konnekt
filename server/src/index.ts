@@ -1,9 +1,14 @@
 import "dotenv/config";
+import dns from "dns";
 import express from "express";
 import cors from "cors";
 import { createServer } from "http";
 import { initSocket } from "./socket";
 import authRouter from "./routes/auth";
+
+// Render's network can't route outbound IPv6 (e.g. to Gmail's SMTP servers);
+// prefer IPv4 results for all outbound DNS lookups process-wide.
+dns.setDefaultResultOrder("ipv4first");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
