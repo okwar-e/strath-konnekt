@@ -27,6 +27,7 @@ export default function Chat() {
     reportUser,
   } = useMatchmaking();
   const { localVideoRef, remoteVideoRef, mediaError } = useWebRTC(
+    status !== "idle",
     status === "connected",
     isInitiator
   );

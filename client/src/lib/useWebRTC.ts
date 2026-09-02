@@ -6,28 +6,85 @@ const RTC_CONFIG: RTCConfiguration = {
 };
 
 /**
- * Manages a single peer-to-peer video/audio call over the existing Socket.IO
- * connection (used only for signaling: webrtc_offer/answer/ice_candidate).
- * Starts capturing media and negotiating as soon as `active` becomes true,
- * and fully tears everything down (tracks, peer connection, video elements)
- * whenever `active` becomes false or the component unmounts — this covers
- * Next, End, and disconnect, since all three flip matchmaking status away
- * from "connected".
+ * Manages the local camera/mic preview plus a single peer-to-peer video/audio
+ * call, signaled over the existing Socket.IO connection (webrtc_offer/answer/
+ * ice_candidate only).
+ *
+ * Local media is requested as soon as `mediaEnabled` is true (i.e. as soon as
+ * the user is on the Chat page, even while still searching) so the self-view
+ * shows immediately. The peer connection is only created/negotiated once
+ * `matched` is true, and reuses whatever local stream is already available.
+ *
+ * Everything is torn down (tracks stopped, peer connection closed, video
+ * elements cleared) whenever the corresponding flag flips back to false or
+ * the component unmounts — this covers Next, End, and disconnect, since all
+ * three flip matchmaking status away from "connected", and leaving the Chat
+ * page flips `mediaEnabled` off too.
  */
-export function useWebRTC(active: boolean, isInitiator: boolean) {
+export function useWebRTC(mediaEnabled: boolean, matched: boolean, isInitiator: boolean) {
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [mediaError, setMediaError] = useState<string | null>(null);
 
+  // Local camera/mic preview — independent of match status.
   useEffect(() => {
-    if (!active) return;
+    if (!mediaEnabled) return;
 
     const localVideoEl = localVideoRef.current;
+    let cancelled = false;
+
+    async function start() {
+      setMediaError(null);
+      console.log("[WEBRTC-DEBUG] getUserMedia: requesting permissions");
+
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        console.log("[WEBRTC-DEBUG] getUserMedia: permission granted");
+        console.log(
+          `[WEBRTC-DEBUG] getUserMedia: number of local tracks = ${stream.getTracks().length}`,
+          stream.getTracks().map((t) => t.kind)
+        );
+      } catch (err) {
+        console.log("[WEBRTC-DEBUG] getUserMedia: permission denied", err);
+        setMediaError("Camera or microphone access is required.");
+        return;
+      }
+
+      if (cancelled) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
+      setLocalStream(stream);
+      if (localVideoEl) {
+        localVideoEl.srcObject = stream;
+        console.log("[WEBRTC-DEBUG] Video: local video attached");
+      }
+    }
+
+    start();
+
+    return () => {
+      cancelled = true;
+
+      setLocalStream((current) => {
+        current?.getTracks().forEach((track) => track.stop());
+        return null;
+      });
+
+      if (localVideoEl) localVideoEl.srcObject = null;
+    };
+  }, [mediaEnabled]);
+
+  // Peer connection + signaling — only once matched AND local media is ready.
+  useEffect(() => {
+    if (!matched || !localStream) return;
+
     const remoteVideoEl = remoteVideoRef.current;
 
-    let cancelled = false;
     let peer: RTCPeerConnection | null = null;
-    let localStream: MediaStream | null = null;
     let pendingOffer: RTCSessionDescriptionInit | null = null;
     let pendingCandidates: RTCIceCandidateInit[] = [];
 
@@ -46,7 +103,6 @@ export function useWebRTC(active: boolean, isInitiator: boolean) {
 
     async function handleOffer({ offer }: { offer: RTCSessionDescriptionInit }) {
       if (!peer) {
-        // Peer isn't created yet (still awaiting getUserMedia) — queue for when it is.
         pendingOffer = offer;
         return;
       }
@@ -72,7 +128,6 @@ export function useWebRTC(active: boolean, isInitiator: boolean) {
     async function handleIceCandidate({ candidate }: { candidate: RTCIceCandidateInit }) {
       if (!candidate) return;
       if (!peer || !peer.remoteDescription) {
-        // No remote description yet — queue and apply once it's set, instead of dropping.
         pendingCandidates.push(candidate);
         return;
       }
@@ -84,85 +139,56 @@ export function useWebRTC(active: boolean, isInitiator: boolean) {
       }
     }
 
-    // Registered immediately (before getUserMedia/RTCPeerConnection creation) so an
+    // Registered immediately (before RTCPeerConnection creation) so an
     // offer/answer/ICE candidate arriving early is queued above instead of dropped.
     socket.on("webrtc_offer", handleOffer);
     socket.on("webrtc_answer", handleAnswer);
     socket.on("webrtc_ice_candidate", handleIceCandidate);
 
-    async function start() {
-      setMediaError(null);
+    console.log("[WEBRTC-DEBUG] Peer connection: creating RTCPeerConnection");
+    peer = new RTCPeerConnection(RTC_CONFIG);
+    localStream.getTracks().forEach((track) => peer!.addTrack(track, localStream));
 
-      console.log("[WEBRTC-DEBUG] getUserMedia: requesting permissions");
-      try {
-        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        console.log("[WEBRTC-DEBUG] getUserMedia: permission granted");
-        console.log(
-          `[WEBRTC-DEBUG] getUserMedia: number of local tracks = ${localStream.getTracks().length}`,
-          localStream.getTracks().map((t) => t.kind)
-        );
-      } catch (err) {
-        console.log("[WEBRTC-DEBUG] getUserMedia: permission denied", err);
-        setMediaError("Camera or microphone access is required.");
-        return;
+    peer.ontrack = (event) => {
+      console.log("[WEBRTC-DEBUG] Video: remote stream received (ontrack)");
+      if (remoteVideoEl) remoteVideoEl.srcObject = event.streams[0];
+    };
+
+    peer.onicecandidate = (event) => {
+      if (event.candidate) {
+        console.log("[WEBRTC-DEBUG] ICE candidate generated", event.candidate);
+        socket.emit("webrtc_ice_candidate", { candidate: event.candidate });
       }
+    };
 
-      if (cancelled) {
-        localStream.getTracks().forEach((track) => track.stop());
-        return;
-      }
+    peer.onconnectionstatechange = () => {
+      console.log(`[WEBRTC-DEBUG] connectionState: ${peer?.connectionState}`);
+    };
 
-      if (localVideoEl) {
-        localVideoEl.srcObject = localStream;
-        console.log("[WEBRTC-DEBUG] Video: local video attached");
-      }
+    peer.oniceconnectionstatechange = () => {
+      console.log(`[WEBRTC-DEBUG] ICE: ${peer?.iceConnectionState}`);
+    };
 
-      console.log("[WEBRTC-DEBUG] Peer connection: creating RTCPeerConnection");
-      peer = new RTCPeerConnection(RTC_CONFIG);
-      localStream.getTracks().forEach((track) => peer!.addTrack(track, localStream!));
+    peer.onsignalingstatechange = () => {
+      console.log(`[WEBRTC-DEBUG] signalingState: ${peer?.signalingState}`);
+    };
 
-      peer.ontrack = (event) => {
-        console.log("[WEBRTC-DEBUG] Video: remote stream received (ontrack)");
-        if (remoteVideoEl) remoteVideoEl.srcObject = event.streams[0];
-      };
-
-      peer.onicecandidate = (event) => {
-        if (event.candidate) {
-          console.log("[WEBRTC-DEBUG] ICE candidate generated", event.candidate);
-          socket.emit("webrtc_ice_candidate", { candidate: event.candidate });
-        }
-      };
-
-      peer.onconnectionstatechange = () => {
-        console.log(`[WEBRTC-DEBUG] connectionState: ${peer?.connectionState}`);
-      };
-
-      peer.oniceconnectionstatechange = () => {
-        console.log(`[WEBRTC-DEBUG] ICE: ${peer?.iceConnectionState}`);
-      };
-
-      peer.onsignalingstatechange = () => {
-        console.log(`[WEBRTC-DEBUG] signalingState: ${peer?.signalingState}`);
-      };
-
+    async function negotiate() {
       if (isInitiator) {
         console.log("[WEBRTC-DEBUG] Peer connection: creating offer");
-        const offer = await peer.createOffer();
-        await peer.setLocalDescription(offer);
+        const offer = await peer!.createOffer();
+        await peer!.setLocalDescription(offer);
         console.log("[WEBRTC-DEBUG] Local description set (offer)");
         socket.emit("webrtc_offer", { offer });
       } else if (pendingOffer) {
-        // An offer arrived while getUserMedia/RTCPeerConnection setup was still in flight.
         await handleOffer({ offer: pendingOffer });
         pendingOffer = null;
       }
     }
 
-    start();
+    negotiate();
 
     return () => {
-      cancelled = true;
-
       socket.off("webrtc_offer", handleOffer);
       socket.off("webrtc_answer", handleAnswer);
       socket.off("webrtc_ice_candidate", handleIceCandidate);
@@ -170,13 +196,9 @@ export function useWebRTC(active: boolean, isInitiator: boolean) {
       peer?.close();
       peer = null;
 
-      localStream?.getTracks().forEach((track) => track.stop());
-      localStream = null;
-
-      if (localVideoEl) localVideoEl.srcObject = null;
       if (remoteVideoEl) remoteVideoEl.srcObject = null;
     };
-  }, [active, isInitiator]);
+  }, [matched, isInitiator, localStream]);
 
   return { localVideoRef, remoteVideoRef, mediaError };
 }
