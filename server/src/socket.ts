@@ -18,6 +18,7 @@ export function initSocket(httpServer: HttpServer, clientUrl: string): Server {
 
   io.on("connection", (socket: Socket) => {
     console.log(`Socket connected: ${socket.id}`);
+    console.log(`[DEBUG] Socket connected with socket ID: ${socket.id}`);
 
     registerMatchmaking(io, socket, matchmaking);
     registerMessaging(io, socket, matchmaking);

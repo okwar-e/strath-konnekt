@@ -45,6 +45,9 @@ export class MatchmakingService {
     // One user can only appear once in the queue.
     this.removeFromQueueByUserId(userId);
     this.queue.push({ socketId: socket.id, userId });
+    console.log(`[DEBUG] Queue size after enqueue: ${this.queue.length}`, {
+      queue: this.queue.map((e) => ({ socketId: e.socketId, userId: e.userId })),
+    });
     socket.emit("searching");
 
     await this.tryMatch();
@@ -137,6 +140,10 @@ export class MatchmakingService {
   }
 
   private async tryMatch() {
+    console.log(`[DEBUG] tryMatch() called. Queue size: ${this.queue.length}`, {
+      queue: this.queue.map((e) => ({ socketId: e.socketId, userId: e.userId })),
+    });
+
     let matchedInPass = true;
 
     while (matchedInPass) {
@@ -152,6 +159,11 @@ export class MatchmakingService {
           // Skip an immediate rematch with the stranger they just skipped.
           if (this.isOnCooldown(a.userId, b.userId)) continue;
 
+          console.log(`[DEBUG] tryMatch(): selected pair for matching`, {
+            userA: a.userId,
+            userB: b.userId,
+          });
+
           this.queue.splice(j, 1);
           this.queue.splice(i, 1);
 
@@ -160,6 +172,12 @@ export class MatchmakingService {
           break;
         }
       }
+    }
+
+    if (this.queue.length > 0) {
+      console.log(
+        `[DEBUG] tryMatch(): no more matches possible this pass. ${this.queue.length} user(s) still waiting.`
+      );
     }
   }
 
@@ -181,6 +199,7 @@ export class MatchmakingService {
       data: { user1Id: a.userId, user2Id: b.userId },
     });
     const roomId = match.id;
+    console.log(`[DEBUG] Match ID created: ${match.id}`, { userA: a.userId, userB: b.userId });
 
     aSocket.join(roomId);
     bSocket.join(roomId);
@@ -188,7 +207,9 @@ export class MatchmakingService {
     this.activeMatches.set(a.socketId, { matchId: match.id, roomId, partnerSocketId: b.socketId });
     this.activeMatches.set(b.socketId, { matchId: match.id, roomId, partnerSocketId: a.socketId });
 
+    console.log(`[DEBUG] Emitting matched to socket ${a.socketId} (user ${a.userId})`);
     aSocket.emit("matched");
+    console.log(`[DEBUG] Emitting matched to socket ${b.socketId} (user ${b.userId})`);
     bSocket.emit("matched");
   }
 

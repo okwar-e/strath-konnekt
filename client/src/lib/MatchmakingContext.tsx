@@ -18,11 +18,13 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     function handleSearching() {
+      console.log("[DEBUG] Received event: searching");
       setStatus("searching");
       setError(null);
       setSearchStartedAt(Date.now());
     }
     function handleMatched() {
+      console.log("[DEBUG] Received event: matched");
       setStatus("connected");
       setMessages([]);
       setNotice(null);
@@ -30,12 +32,14 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
       setReportConfirmed(false);
     }
     function handleReturnedToQueue({ reason }: { reason: "next" | "disconnected" }) {
+      console.log("[DEBUG] Received event: returned_to_queue", { reason });
       setStatus("searching");
       setMessages([]);
       setNotice(reason === "disconnected" ? "Stranger disconnected." : null);
       setSearchStartedAt(Date.now());
     }
     function handleQueueError({ error }: { error: string }) {
+      console.log("[DEBUG] Received event: queue_error", { error });
       setError(error);
       setStatus("idle");
       setSearchStartedAt(null);
@@ -69,6 +73,8 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (!socket.connected) socket.connect();
+    console.log("[DEBUG] Socket connected", { socketId: socket.id, connected: socket.connected });
+    console.log("[DEBUG] Emitting join_queue");
     socket.emit("join_queue", { idToken });
   }, []);
 

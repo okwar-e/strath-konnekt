@@ -6,6 +6,7 @@ export default function Home() {
   const { startChat, error } = useMatchmaking();
 
   async function handleStartChat() {
+    console.log("[DEBUG] Start Chat clicked");
     await startChat();
     navigate("/chat");
   }
