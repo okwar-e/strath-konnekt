@@ -15,6 +15,7 @@ export interface MatchmakingContextValue {
   messages: ChatMessage[];
   searchStartedAt: number | null;
   reportConfirmed: boolean;
+  isInitiator: boolean;
   startChat: () => Promise<void>;
   nextStranger: () => void;
   endChat: () => void;
@@ -29,6 +30,7 @@ export const MatchmakingContext = createContext<MatchmakingContextValue>({
   messages: [],
   searchStartedAt: null,
   reportConfirmed: false,
+  isInitiator: false,
   startChat: async () => {},
   nextStranger: () => {},
   endChat: () => {},

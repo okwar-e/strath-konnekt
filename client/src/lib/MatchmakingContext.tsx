@@ -15,6 +15,7 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [searchStartedAt, setSearchStartedAt] = useState<number | null>(null);
   const [reportConfirmed, setReportConfirmed] = useState(false);
+  const [isInitiator, setIsInitiator] = useState(false);
 
   useEffect(() => {
     function handleSearching() {
@@ -23,13 +24,14 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
       setError(null);
       setSearchStartedAt(Date.now());
     }
-    function handleMatched() {
-      console.log("[DEBUG] Received event: matched");
+    function handleMatched({ initiator }: { initiator: boolean }) {
+      console.log("[DEBUG] Received event: matched", { initiator });
       setStatus("connected");
       setMessages([]);
       setNotice(null);
       setSearchStartedAt(null);
       setReportConfirmed(false);
+      setIsInitiator(initiator);
     }
     function handleReturnedToQueue({ reason }: { reason: "next" | "disconnected" }) {
       console.log("[DEBUG] Received event: returned_to_queue", { reason });
@@ -37,12 +39,14 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
       setMessages([]);
       setNotice(reason === "disconnected" ? "Stranger disconnected." : null);
       setSearchStartedAt(Date.now());
+      setIsInitiator(false);
     }
     function handleQueueError({ error }: { error: string }) {
       console.log("[DEBUG] Received event: queue_error", { error });
       setError(error);
       setStatus("idle");
       setSearchStartedAt(null);
+      setIsInitiator(false);
     }
     function handleReceiveMessage(message: ChatMessage) {
       setMessages((prev) => [...prev, message]);
@@ -90,6 +94,7 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
     setNotice(null);
     setSearchStartedAt(null);
     setReportConfirmed(false);
+    setIsInitiator(false);
   }, []);
 
   const sendMessage = useCallback((text: string) => {
@@ -112,6 +117,7 @@ export function MatchmakingProvider({ children }: { children: ReactNode }) {
         messages,
         searchStartedAt,
         reportConfirmed,
+        isInitiator,
         startChat,
         nextStranger,
         endChat,

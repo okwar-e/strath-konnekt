@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMatchmaking } from "../lib/matchmakingContextBase";
+import { useWebRTC } from "../lib/useWebRTC";
 
 const REPORT_REASONS = ["Nudity", "Harassment", "Threats", "Spam", "Other"];
 
@@ -19,11 +20,16 @@ export default function Chat() {
     messages,
     searchStartedAt,
     reportConfirmed,
+    isInitiator,
     nextStranger,
     endChat,
     sendMessage,
     reportUser,
   } = useMatchmaking();
+  const { localVideoRef, remoteVideoRef, mediaError } = useWebRTC(
+    status === "connected",
+    isInitiator
+  );
   const [draft, setDraft] = useState("");
   const [showReportSheet, setShowReportSheet] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -73,7 +79,7 @@ export default function Chat() {
 
   const statusText =
     status === "connected"
-      ? "You are now chatting with a random stranger."
+      ? mediaError ?? "You are now chatting with a random stranger."
       : reportConfirmed
         ? "Thanks. Your report has been submitted."
         : (notice ?? getSearchMessage(elapsedSeconds));
@@ -85,26 +91,10 @@ export default function Chat() {
       <div className="video-stage">
         <div className="stage-overlay-top">{stageLabel}</div>
 
-        <div className="stage-placeholder">
-          <svg
-            className="avatar-icon"
-            viewBox="0 0 24 24"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            aria-hidden="true"
-          >
-            <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="1.5" />
-            <path
-              d="M4 20c0-3.5 3.5-6 8-6s8 2.5 8 6"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
-        </div>
+        <video ref={remoteVideoRef} className="remote-video" autoPlay playsInline />
 
         <div className="self-view">
-          <span>You</span>
+          <video ref={localVideoRef} className="local-video" autoPlay muted playsInline />
         </div>
 
         <div className="video-controls">

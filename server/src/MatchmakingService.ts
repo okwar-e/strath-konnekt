@@ -208,9 +208,10 @@ export class MatchmakingService {
     this.activeMatches.set(b.socketId, { matchId: match.id, roomId, partnerSocketId: a.socketId });
 
     console.log(`[DEBUG] Emitting matched to socket ${a.socketId} (user ${a.userId})`);
-    aSocket.emit("matched");
+    // One side must be the WebRTC offer initiator; the pairing order is arbitrary but deterministic.
+    aSocket.emit("matched", { initiator: true });
     console.log(`[DEBUG] Emitting matched to socket ${b.socketId} (user ${b.userId})`);
-    bSocket.emit("matched");
+    bSocket.emit("matched", { initiator: false });
   }
 
   private async endActiveMatch(socketId: string) {

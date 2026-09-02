@@ -3,9 +3,10 @@ import { Server, Socket } from "socket.io";
 import { registerMatchmaking } from "./matchmaking";
 import { registerMessaging } from "./messaging";
 import { registerReporting } from "./report";
+import { registerWebRTC } from "./webrtc";
 import { MatchmakingService } from "./MatchmakingService";
 
-// Socket.IO foundation: connection/disconnect logging + matchmaking queue + messaging + reporting.
+// Socket.IO foundation: connection/disconnect logging + matchmaking queue + messaging + reporting + WebRTC signaling.
 export function initSocket(httpServer: HttpServer, clientUrl: string): Server {
   const io = new Server(httpServer, {
     cors: {
@@ -23,6 +24,7 @@ export function initSocket(httpServer: HttpServer, clientUrl: string): Server {
     registerMatchmaking(io, socket, matchmaking);
     registerMessaging(io, socket, matchmaking);
     registerReporting(io, socket, matchmaking);
+    registerWebRTC(io, socket, matchmaking);
 
     socket.on("disconnect", (reason) => {
       console.log(`Socket disconnected: ${socket.id} (${reason})`);
