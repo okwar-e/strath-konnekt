@@ -1,10 +1,8 @@
 import { initializeApp } from "firebase/app";
 import {
   getAuth,
-  sendSignInLinkToEmail,
   isSignInWithEmailLink,
   signInWithEmailLink,
-  type ActionCodeSettings,
 } from "firebase/auth";
 
 const firebaseConfig = {
@@ -32,17 +30,6 @@ export const auth = getAuth(app);
 
 // Key used to remember the email the sign-in link was sent to (per Firebase docs).
 export const EMAIL_FOR_SIGN_IN_KEY = "strathkonnekt.emailForSignIn";
-
-const actionCodeSettings: ActionCodeSettings = {
-  url: `${window.location.origin}/login`,
-  handleCodeInApp: true,
-};
-
-export function sendLoginLink(email: string) {
-  return sendSignInLinkToEmail(auth, email, actionCodeSettings).then(() => {
-    window.localStorage.setItem(EMAIL_FOR_SIGN_IN_KEY, email);
-  });
-}
 
 export function isLoginLink(url: string) {
   return isSignInWithEmailLink(auth, url);

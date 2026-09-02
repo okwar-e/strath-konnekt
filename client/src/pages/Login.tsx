@@ -3,8 +3,8 @@ import {
   EMAIL_FOR_SIGN_IN_KEY,
   completeLoginWithLink,
   isLoginLink,
-  sendLoginLink,
 } from "../lib/firebase";
+import { requestLoginLink } from "../lib/api";
 import { isStrathmoreEmail } from "../lib/validators";
 
 export default function Login() {
@@ -58,7 +58,8 @@ export default function Login() {
 
     setLoading(true);
     try {
-      await sendLoginLink(email);
+      await requestLoginLink(email);
+      window.localStorage.setItem(EMAIL_FOR_SIGN_IN_KEY, email);
       setLinkSent(true);
     } catch {
       setError("Failed to send sign-in link. Please try again.");
