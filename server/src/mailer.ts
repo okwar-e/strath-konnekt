@@ -1,30 +1,32 @@
 import nodemailer, { type Transporter } from "nodemailer";
-import type SMTPTransport from "nodemailer/lib/smtp-transport";
+import dns from "dns";
 
 let transporter: Transporter | null = null;
 
 // Lazy init so the server can still boot before EMAIL_USER/EMAIL_APP_PASSWORD are configured.
-function getTransporter(): Transporter {
+// Render's outbound networking has no IPv6 route, and nodemailer doesn't honor a plain
+// "family" option, so we resolve an IPv4 literal ourselves and connect to that directly
+// (with `servername` set so TLS certificate validation still matches smtp.gmail.com).
+async function getTransporter(): Promise<Transporter> {
   if (!transporter) {
-    const options: SMTPTransport.Options & { family?: number } = {
-      host: "smtp.gmail.com",
+    const [ipv4Address] = await dns.promises.resolve4("smtp.gmail.com");
+    transporter = nodemailer.createTransport({
+      host: ipv4Address,
       port: 465,
       secure: true,
-      // Render's outbound networking can't route IPv6 to Gmail's mail servers;
-      // force IPv4 to avoid ENETUNREACH connecting to smtp.gmail.com.
-      family: 4,
+      tls: { servername: "smtp.gmail.com" },
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_APP_PASSWORD,
       },
-    };
-    transporter = nodemailer.createTransport(options);
+    });
   }
   return transporter;
 }
 
 export async function sendLoginLinkEmail(to: string, link: string): Promise<void> {
-  await getTransporter().sendMail({
+  const mailer = await getTransporter();
+  await mailer.sendMail({
     from: `"Strath Konnekt" <${process.env.EMAIL_USER}>`,
     to,
     subject: "Your Strath Konnekt sign-in link",
@@ -35,3 +37,4 @@ export async function sendLoginLinkEmail(to: string, link: string): Promise<void
     `,
   });
 }
+
