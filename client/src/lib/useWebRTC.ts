@@ -31,19 +31,26 @@ export function useWebRTC(active: boolean, isInitiator: boolean) {
 
     async function handleOffer({ offer }: { offer: RTCSessionDescriptionInit }) {
       if (!peer) return;
+      console.log("[WEBRTC-DEBUG] Received offer");
       await peer.setRemoteDescription(new RTCSessionDescription(offer));
+      console.log("[WEBRTC-DEBUG] Remote description set (offer)");
+      console.log("[WEBRTC-DEBUG] Creating answer");
       const answer = await peer.createAnswer();
       await peer.setLocalDescription(answer);
+      console.log("[WEBRTC-DEBUG] Local description set (answer)");
       socket.emit("webrtc_answer", { answer });
     }
 
     async function handleAnswer({ answer }: { answer: RTCSessionDescriptionInit }) {
       if (!peer) return;
+      console.log("[WEBRTC-DEBUG] Received answer");
       await peer.setRemoteDescription(new RTCSessionDescription(answer));
+      console.log("[WEBRTC-DEBUG] Remote description set (answer)");
     }
 
     async function handleIceCandidate({ candidate }: { candidate: RTCIceCandidateInit }) {
       if (!peer || !candidate) return;
+      console.log("[WEBRTC-DEBUG] ICE candidate received", candidate);
       try {
         await peer.addIceCandidate(new RTCIceCandidate(candidate));
       } catch {
@@ -54,9 +61,16 @@ export function useWebRTC(active: boolean, isInitiator: boolean) {
     async function start() {
       setMediaError(null);
 
+      console.log("[WEBRTC-DEBUG] getUserMedia: requesting permissions");
       try {
         localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      } catch {
+        console.log("[WEBRTC-DEBUG] getUserMedia: permission granted");
+        console.log(
+          `[WEBRTC-DEBUG] getUserMedia: number of local tracks = ${localStream.getTracks().length}`,
+          localStream.getTracks().map((t) => t.kind)
+        );
+      } catch (err) {
+        console.log("[WEBRTC-DEBUG] getUserMedia: permission denied", err);
         setMediaError("Camera or microphone access is required.");
         return;
       }
@@ -66,19 +80,37 @@ export function useWebRTC(active: boolean, isInitiator: boolean) {
         return;
       }
 
-      if (localVideoEl) localVideoEl.srcObject = localStream;
+      if (localVideoEl) {
+        localVideoEl.srcObject = localStream;
+        console.log("[WEBRTC-DEBUG] Video: local video attached");
+      }
 
+      console.log("[WEBRTC-DEBUG] Peer connection: creating RTCPeerConnection");
       peer = new RTCPeerConnection(RTC_CONFIG);
       localStream.getTracks().forEach((track) => peer!.addTrack(track, localStream!));
 
       peer.ontrack = (event) => {
+        console.log("[WEBRTC-DEBUG] Video: remote stream received (ontrack)");
         if (remoteVideoEl) remoteVideoEl.srcObject = event.streams[0];
       };
 
       peer.onicecandidate = (event) => {
         if (event.candidate) {
+          console.log("[WEBRTC-DEBUG] ICE candidate generated", event.candidate);
           socket.emit("webrtc_ice_candidate", { candidate: event.candidate });
         }
+      };
+
+      peer.onconnectionstatechange = () => {
+        console.log(`[WEBRTC-DEBUG] connectionState: ${peer?.connectionState}`);
+      };
+
+      peer.oniceconnectionstatechange = () => {
+        console.log(`[WEBRTC-DEBUG] ICE: ${peer?.iceConnectionState}`);
+      };
+
+      peer.onsignalingstatechange = () => {
+        console.log(`[WEBRTC-DEBUG] signalingState: ${peer?.signalingState}`);
       };
 
       socket.on("webrtc_offer", handleOffer);
@@ -86,8 +118,10 @@ export function useWebRTC(active: boolean, isInitiator: boolean) {
       socket.on("webrtc_ice_candidate", handleIceCandidate);
 
       if (isInitiator) {
+        console.log("[WEBRTC-DEBUG] Peer connection: creating offer");
         const offer = await peer.createOffer();
         await peer.setLocalDescription(offer);
+        console.log("[WEBRTC-DEBUG] Local description set (offer)");
         socket.emit("webrtc_offer", { offer });
       }
     }
