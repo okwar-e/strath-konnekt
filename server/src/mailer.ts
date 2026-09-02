@@ -1,17 +1,24 @@
 import nodemailer, { type Transporter } from "nodemailer";
+import type SMTPTransport from "nodemailer/lib/smtp-transport";
 
 let transporter: Transporter | null = null;
 
 // Lazy init so the server can still boot before EMAIL_USER/EMAIL_APP_PASSWORD are configured.
 function getTransporter(): Transporter {
   if (!transporter) {
-    transporter = nodemailer.createTransport({
-      service: "gmail",
+    const options: SMTPTransport.Options & { family?: number } = {
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
+      // Render's outbound networking can't route IPv6 to Gmail's mail servers;
+      // force IPv4 to avoid ENETUNREACH connecting to smtp.gmail.com.
+      family: 4,
       auth: {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_APP_PASSWORD,
       },
-    });
+    };
+    transporter = nodemailer.createTransport(options);
   }
   return transporter;
 }
